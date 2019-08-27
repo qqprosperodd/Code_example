@@ -1,12 +1,12 @@
 
 # Get region coverage and, plot scatter plot and box plot.
 
-We take many time for analysis of Bed files. R helps take less time for
-analysis.
+We take many time for analysis of Bed files. R helps us take less time
+for analysis.
 
-In this example, we analyse multiple Bam files on multiple BED region.
+In this example, you analyse multiple Bam files on multiple BED region.
 
-We get coverage on 9 bed region from 33 bam files.
+I calculated coverage on 9 bed region from 33 bam files.
 
 ### R code
 
@@ -30,7 +30,7 @@ files2 <- files %>%
   str_split(pattern = "\\_", simplify = TRUE) %>%
   .[,1] %>%
   str_replace("OSC", "DHS")
-#Using Regular expression, you get short name of the file.
+#Using Regular expression, you can get short name of the file.
 df <- vector("list", length(files))
 for (i in seq_along(files)) {
   df[[i]] <- read_tsv(files[[i]], col_names = c("chr1", "start1", "end1"),
@@ -111,6 +111,8 @@ writeBED2(hk, "_extended", "hkCPonly")
 ```
 
 ### Unix code
+
+you get coverage of multiple region by samtools bedcov.
 
 ``` r
 cd /Volumes/HDCZ-UT/chipmeta/;
