@@ -1,19 +1,18 @@
----
-output: github_document
----
 
 # Get region coverage and, plot scatter plot and box plot.
 
-We take many time for analysis of Bed files.  R helps take less time for analysis.
+We take many time for analysis of Bed files. R helps take less time for
+analysis.
 
 In this example, we analyse multiple Bam files on multiple BED region.
 
 We get coverage on 9 bed region from 33 bam files.
 
 ### R code
+
 You chop genome into short length fragment.
 
-```{r, eval = FALSE}
+``` r
 #full genome file (for CPM calculation)
 library(tidyverse)
 genome <- read_tsv("/Volumes/HDCZ-UT/genome/UCSC_dm6/dm6.genome", col_names = c("chr1", "end"))
@@ -62,13 +61,15 @@ tx2 %>% mutate(start2 = start1 - 500,
 ```
 
 ### Unix code
+
 To get active/inactive enhancer region, I used bedtools intersect.
 
-I refer the method to <http://www.sciencemag.org/cgi/pmidlookup?view=long&pmid=23328393>.
+I refer the method to
+<http://www.sciencemag.org/cgi/pmidlookup?view=long&pmid=23328393>.
 
 I get the data from <https://www.nature.com/articles/nature13994>.
 
-```{r, eval = FALSE}
+``` r
 cd /Volumes/HDCZ-UT/chipmeta/;
 #get inactive enhancer peak.
 for X in dCP hkCP; do
@@ -80,9 +81,11 @@ bedtools intersect -v -a hkCP.bed -b dCP_extended.bed > hk_enhancer.bed;
 ```
 
 ### R code
-you get 1000 length extended bed file of inactive enhancers and hkCP/dCP only enhancers.
 
-```{r, eval = FALSE}
+you get 1000 length extended bed file of inactive enhancers and hkCP/dCP
+only enhancers.
+
+``` r
 library(tidyverse)
 filedir <- "/Volumes/HDCZ-UT/chipmeta/"
 setwd(filedir)
@@ -109,7 +112,7 @@ writeBED2(hk, "_extended", "hkCPonly")
 
 ### Unix code
 
-```{r, eval = FALSE}
+``` r
 cd /Volumes/HDCZ-UT/chipmeta/;
 for X in SRR3503092_extended dm6_full_genome TEs-DHS-dm6_extended hkCP_extended DHS_extended dCP_extended \
 dCPclose_extended hkCPclose_extended dCPonly_extended hkCPonly_extended; do
@@ -162,11 +165,13 @@ Bamfile/STARRseq/hkCP.bam
 ```
 
 ### R code
+
 First, calculate CPM (count per million) of all experiment.
 
-Next, get boxplot with wilcoxon rank sum test, violinplot, scatterplot with PCC.
+Next, get boxplot with wilcoxon rank sum test, violinplot, scatterplot
+with PCC.
 
-```{r, eval = FALSE}
+``` r
 #get coverage file into single table.
 library(tidyverse)
 library(exactRankTests)

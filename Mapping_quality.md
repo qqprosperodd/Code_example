@@ -1,20 +1,23 @@
----
-output: github_document
----
 
 # mapping quality make
-To make mapping quality bedgraph, we chop genome into short length and map those sequences to the genome and count the fraction of mapped reads in each binsize.
+
+To make mapping quality bedgraph, we chop genome into short length and
+map those sequences to the genome and count the fraction of mapped reads
+in each binsize.
 
 Mappable region bed file is also useful in Hi-C filtering.
 
-This code procedure refers to <https://bitbucket.org/tanaylab/schic2/src/default/map3c/>.
+This code procedure refers to
+<https://bitbucket.org/tanaylab/schic2/src/default/map3c/>.
 
-The article of schic2 is <https://www.nature.com/articles/nature23001> (Nagano et al., Nature, 2017).
+The article of schic2 is <https://www.nature.com/articles/nature23001>
+(Nagano et al., Nature, 2017).
 
 ### R code
+
 You chop genome into short length fragment.
 
-```{r, eval = FALSE}
+``` r
 library(tidyverse)
 genome <- read_tsv("/Volumes/HDCZ-UT/genome/UCSC_dm6/dm6.genome", col_names = c("chr", "size"))
 filedir <- "/Volumes/HDCZ-UT/genome/mapping_quality/"
@@ -38,11 +41,12 @@ fastq_make(10, 100)
 fastq_make(10, 50)
 ```
 
-To generate rest-sites bed with enogth mapping quality, I deside to get coverage of rest-site.
+To generate rest-sites bed with enogth mapping quality, I deside to get
+coverage of rest-site.
 
 For bedtools coverage, you get 50-lenth rest-site fragment.
 
-```{r, eval = FALSE}
+``` r
 filedir <- "/Volumes/HDCZ-UT/genome/mapping_quality/rest_bed/"
 setwd(filedir)
 library(tidyverse)
@@ -60,17 +64,21 @@ HindIII %>% mutate(start2 = start-47, end2 = end + 47) %>%
 ```
 
 ### Unix code
+
 First, you get fasta sequence of short length fragment.
 
 Next, map them to the genome.
 
-You get bedgraph coverage of full genome and coverage of 100 length-extended rest-site.
+You get bedgraph coverage of full genome and coverage of 100
+length-extended rest-site.
 
-If you haven't get rest-site bed file yet, please create it by HiCExplorer findRestSites.
+If you haven’t get rest-site bed file yet, please create it by
+HiCExplorer
+findRestSites.
 
 <https://hicexplorer.readthedocs.io/en/latest/content/tools/findRestSite.html#findrestsite>
 
-```{r, eval = FALSE}
+``` r
 #Mapping
 cd /Volumes/HDCZ-UT/genome/mapping_quality/;
 mkdir Discas/;
@@ -109,9 +117,10 @@ done;
 ```
 
 ### R code
-Filter Coverage >= 20 and you get final rest-site.
 
-```{r, eval = FALSE}
+Filter Coverage \>= 20 and you get final rest-site.
+
+``` r
 filedir <- "/Volumes/HDCZ-UT/genome/mapping_quality/Coverage/"
 setwd(filedir)
 files <- dir(filedir, pattern = "\\.bed$", full.names = TRUE)
