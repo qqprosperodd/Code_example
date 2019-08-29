@@ -4,9 +4,7 @@
 We take many time for analysis of Bed files. R helps us take less time
 for analysis.
 
-In this example, you analyse multiple Bam files on multiple BED region.
-
-I calculated coverage on 9 bed region from 33 bam files.
+In this example, I get coverage of 9 bed region from 33 bam files.
 
 ### R code
 
@@ -265,9 +263,8 @@ fig <- function(x, y) {
 # * = p < 1e-2
 # ** = p < 1e-4
 # *** = p < 2.2e-16
-# else NS (threashold was refered to Hug et al., Cell, 2017.(<https://www.cell.com/cell/pdf/S0092-8674(17)30343-4.pdf>))
-#In order to get figure by short code, I use function.
-#If you want other method of display, see https://github.com/kassambara/ggpubr/issues/65.
+# else = NS (I refer threashold to Hug et al., Cell, 2017.)
+#If you want other way, see https://github.com/kassambara/ggpubr/issues/65.
 #ATAC
 ATAC <- CPM %>% filter(str_detect(sample, pattern = "ATAC"))
 fig(ATAC, "ATAC")
@@ -366,4 +363,4 @@ keio_H3K27Ac <- KEIO %>% filter(str_detect(sample, pattern = "H3K27Ac"))
 fig2(keio_H3K27Ac, "keio_H3K27Ac")
 ```
 
-This code was generated on Python3.7, R3.60.
+This code was generated on Python3.7 of Anaconda3, R3.60.
