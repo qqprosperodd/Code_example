@@ -1,7 +1,7 @@
 
 # README
 
-In this repository, I introduce some complicated method.
+In this repository, I introduce some method.
 
 I usually use Anaconda and R for processing Data.
 
