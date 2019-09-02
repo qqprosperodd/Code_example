@@ -8,7 +8,7 @@ If you want to know the method, see (Vogel et al., Nature Method, 2007).
 
 The analysis of DamID-chip was developed in (Filion et al., Cell, 2010).
 
-And this example code uses HMMt package Filion used in the article.
+And this example code uses HMMt package that Filion used in the article.
 
 In Van Steensel’s later article, they used chromHMM for DamIDseq, but
 HMMt gives fine result.
@@ -224,7 +224,7 @@ Jurius <- Result %>% filter(state ==2) %>% mutate(order_num2 = as.double(order_n
             col_names = FALSE)
 ```
 
-# Sample code of Piwi CLIP
+# Sample code of CLIP experiment
 
 HMMt can develop other experiments if the sample distribution can be
 estimated by student’s t distribution.
@@ -403,6 +403,8 @@ Jurius <- Result %>% filter(state ==2) %>% mutate(order_num2 = as.double(order_n
   write_tsv("~/../Desktop/190709/Piwi_bound_site_CLIP.bed",
             col_names = FALSE)
 ```
+
+All unix code was done on Anaconda3.
 
 All R was done in R3.6 on windows10. If you use MacOS, you may have some
 trouble in installing HMMt. See

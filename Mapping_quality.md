@@ -1,5 +1,5 @@
 
-# mapping quality make
+# Mappable region bed file
 
 To make mapping quality bedgraph, we chop genome into short length and
 map those sequences to the genome and count the fraction of mapped reads
