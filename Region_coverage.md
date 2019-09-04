@@ -1,8 +1,8 @@
 
 # Get region coverage, scatter plot and box plot.
 
-We take many time for analysis of Bed files. R helps us take less time
-for analysis.
+We take so many times for analysis of Bed files. R helps us take less
+time for analysis.
 
 In this example, I get coverage of 9 bed region from 33 bam files.
 
@@ -62,10 +62,10 @@ tx2 %>% mutate(start2 = start1 - 500,
 
 To get active/inactive enhancer region, I used bedtools intersect.
 
-I refer the method to
+I refer to
 <http://www.sciencemag.org/cgi/pmidlookup?view=long&pmid=23328393>.
 
-I get the data from <https://www.nature.com/articles/nature13994>.
+I get data from <https://www.nature.com/articles/nature13994>.
 
 ``` r
 cd /Volumes/HDCZ-UT/chipmeta/;
@@ -129,39 +129,7 @@ samtools bedcov -Q 15 ${X}.bed Bamfile/*/*.bam > Coverage/10000bp/${X}_cov.bed;
 done;
 
 ls Bamfile/*/*.bam;
-Bamfile/ATACseq/siEGFP_ATAC_merged.bam
-Bamfile/ATACseq/siPiwi_ATAC_merged.bam
-Bamfile/ChIPseq/SRR7992739_sort.bam
-Bamfile/ChIPseq/SRR7992740_sort.bam
-Bamfile/ChIPseq/SRR7992744_sort.bam
-Bamfile/ChIPseq/SRR7992745_sort.bam
-Bamfile/ChIPseq/SRR7992749_sort.bam
-Bamfile/ChIPseq/SRR7992750_sort.bam
-Bamfile/ChIPseq/siE-H3K27Ac_sort.bam
-Bamfile/ChIPseq/siE-H3K27me3_sort.bam
-Bamfile/ChIPseq/siE-H3K4me3_sort.bam
-Bamfile/ChIPseq/siE-IN_sort.bam
-Bamfile/ChIPseq/siE_CP190_bowtie2_sort.bam
-Bamfile/ChIPseq/siE_IN_bowtie2_sort.bam
-Bamfile/ChIPseq/siP-H3K27Ac_sort.bam
-Bamfile/ChIPseq/siP-H3K27me3_sort.bam
-Bamfile/ChIPseq/siP-H3K4me3_sort.bam
-Bamfile/ChIPseq/siP-IN_sort.bam
-Bamfile/ChIPseq/siP_CP190_bowtie2_sort.bam
-Bamfile/ChIPseq/siP_IN_bowtie2_sort.bam
-Bamfile/DHSseq/OSC_DHS.bam
-Bamfile/DHSseq/SRR569912_bowtie2_sort.bam
-Bamfile/GROseq/SRR609665_sort.bam
-Bamfile/GROseq/SRR609666_sort.bam
-Bamfile/RIPseq/SRR3503092_bowtie2_sort.bam
-Bamfile/RIPseq/SRR8791716_sort.bam
-Bamfile/RNAseq/EGFPKD_Bre_poly_sort.bam
-Bamfile/RNAseq/PiwiKD_Bre_poly_sort.bam
-Bamfile/RNAseq/SRR7939449_sort.bam
-Bamfile/RNAseq/SRR7939450_sort.bam
-Bamfile/STARRseq/SRR1297299rmdup.bam
-Bamfile/STARRseq/dCP.bam
-Bamfile/STARRseq/hkCP.bam
+#output was deleted.
 ```
 
 ### R code
@@ -419,25 +387,6 @@ Bre_H3K9me3 <- Bre %>% filter(str_detect(sample, pattern = "H3K9me3"))
 fig2(Bre_H3K9me3, "Bre_H3K9me3")
 Bre_Pol2 <- Bre %>% filter(str_detect(sample, pattern = "Pol2"))
 fig2(Bre_Pol2, "Bre_Pol2")
-#keio chip seq
-KEIO <- CPM2 %>% filter(str_detect(sample, pattern = "si")) %>%
-  filter(!(str_detect(sample, pattern = "ATAC"))) %>%
-  spread(key = sample, value = CPM) %>%
-  filter(`siE-IN` != 0 & `siP-IN` != 0) %>%
-  mutate(keio_E_H3K4me3 = log2(`siE-H3K4me3` / `siE-IN` + 1),
-         keio_P_H3K4me3 = log2(`siP-H3K4me3` / `siP-IN` + 1),
-         keio_E_H3K27me3 = log2(`siE-H3K27me3` / `siE-IN` + 1),
-         keio_P_H3K27me3 = log2(`siP-H3K27me3` / `siP-IN` + 1),
-         keio_E_H3K27Ac = log2(`siE-H3K27Ac` / `siE-IN` + 1),
-         keio_P_H3K27Ac = log2(`siP-H3K27Ac` / `siP-IN` + 1)) %>%
-  select(-contains("si")) %>%
-  gather(-anotation, -type, key = "sample", value = "cov")
-keio_H3K4me3 <- KEIO %>% filter(str_detect(sample, pattern = "H3K4me3"))
-fig2(keio_H3K4me3, "keio_H3K4me3")
-keio_H3K27me3 <- KEIO %>% filter(str_detect(sample, pattern = "H3K27me3"))
-fig2(keio_H3K27me3, "keio_H3K27me3")
-keio_H3K27Ac <- KEIO %>% filter(str_detect(sample, pattern = "H3K27Ac"))
-fig2(keio_H3K27Ac, "keio_H3K27Ac")
 ```
 
 This code was generated on Python3.7 of Anaconda3, R3.60.

@@ -136,7 +136,7 @@ test_t <- Coverage1 %>% dplyr::select(-SRR4296244,-SRR4296245) %>% filter(chr !=
   mutate(dis_cov = log2(SRR4296242/ SRR4296243)) %>%
   dplyr::select(chr, center, dis_cov) %>%
   group_by(chr) %>% nest() %>%
-  mutate(oberon = map(data, function(x) {stats::loess(x$dis_cov ~ x$center, span = 0.4)}),
+  mutate(oberon = map(data, function(x) {stats::loess(x$dis_cov ~ x$center, span = 0.1)}),
          titania = map2(data, oberon, function(x,y) {stats::predict(y, x$center)})) %>%
   dplyr::select(-oberon) %>% unnest() %>%
   mutate(loess_nom = dis_cov - titania) %>%
@@ -152,9 +152,11 @@ test_t %>%
   ggplot() + geom_density(aes(x = loess_nom)) +
   coord_cartesian(xlim = c(-2.5, 2.5)) +
   stat_function(fun = dnorm, args = list(mean = fit_norm[["estimate"]][["mean"]],
-                                         sd = fit_norm[["estimate"]][["sd"]])) +
+                                         sd = fit_norm[["estimate"]][["sd"]]),
+                aes_q(color = "gaussian")) +
   stat_function(fun = dnorm, args = list(mean = fit_t[["estimate"]][["m"]],
-                                      sd = fit_t[["estimate"]][["s"]]))
+                                         sd = fit_t[["estimate"]][["s"]]),
+                aes_q(color = "student's t"))
 ggsave("~/../Desktop/190702/t_distri.png", width =3, height = 4, dpi = 300)
 #You can get the figure S5A in (Filion et al., Cell, 2010).
 Coverage1 %>% filter(chr !="chrY") %>%
@@ -165,7 +167,7 @@ Coverage1 %>% filter(chr !="chrY") %>%
   dplyr::select(chr, center, dis_cov) %>%
   filter(chr =="chr2L") %>%
   ggplot(aes(x = center, y = dis_cov)) + geom_line()+
-  geom_smooth(method = "loess", span = 0.4, se = FALSE)
+  geom_smooth(method = "loess", span = 0.1, se = FALSE)
 ggsave("~/../Desktop/190702/distri_chr2L.png", width =10, height = 4, dpi = 300)
 ###################################################
 #replicate merge and LOESS normalization
@@ -176,7 +178,7 @@ Merge_LOESS <- Coverage1 %>% filter(chr !="chrY") %>%
          dis_cov = (dis_cov1 + dis_cov2)/2) %>%
   dplyr::select(chr, center, dis_cov) %>%
   group_by(chr) %>% nest() %>%
-  mutate(oberon = map(data, function(x) {stats::loess(x$dis_cov ~ x$center, span = 0.4)}),
+  mutate(oberon = map(data, function(x) {stats::loess(x$dis_cov ~ x$center, span = 0.1)}),
          titania = map2(data, oberon, function(x,y) {stats::predict(y, x$center)})) %>%
   dplyr::select(-oberon) %>% unnest() %>%
   mutate(loess_nom = dis_cov - titania,
@@ -231,8 +233,8 @@ estimated by student’s t distribution.
 
 Here, an example of CLIP experiment.
 
-Also, there are other experiment tools that detect broad peak of ChIP or
-CLIP by Hidden Markov Model.
+Also, there are other experiment tools that can detect broad peak of
+ChIP or CLIP by Hidden Markov Model.
 
 See chromHMM or HitoneHMM.
 
@@ -320,20 +322,21 @@ test_make <- function(res){
 result_t1 <- test_make(1000)
 result_t1 %>% group_by(ctrl) %>% summarise(n())
 result_t2 <- test_make(1000) %>% rename(ctrl1 = ctrl)
-t_test <- left_join(result_t1, result_t2, by = c("chr", "binres")) %>%
-  drop_na() %>% mutate(dis_cov = log2(ctrl1/ctrl),
-                                      center = binres + 500) %>%
-  dplyr::select(chr, center, dis_cov) %>%
-  group_by(chr) %>% nest() %>%
-  mutate(oberon = map(data, function(x) {stats::loess(x$dis_cov ~ x$center, span = 0.4)}),
+t_test <- left_join(result_t1, result_t2, by = c("chr", "binres")) %>% 
+  mutate_all(funs(ifelse(is.na(.), 0, .))) %>% 
+  mutate(dis_cov = log2((ctrl1+1)/(ctrl+1)),
+         center = binres + 500) %>% 
+  dplyr::select(chr, center, dis_cov) %>% 
+  group_by(chr) %>% nest() %>% 
+  mutate(oberon = map(data, function(x) {stats::loess(x$dis_cov ~ x$center, span = 0.1)}),
          titania = map2(data, oberon, function(x,y) {stats::predict(y, x$center)})) %>%
-  dplyr::select(-oberon) %>% unnest() %>%
+  dplyr::select(-oberon) %>% unnest() %>% 
   mutate(loess_nom = dis_cov - titania,
          start = center -500,
-         end = center +500) %>%
+         end = center +500) %>% 
   dplyr::select(chr, start, end, loess_nom)
 fit_norm <- fitdistr(t_test$loess_nom, "normal")
-fit_t <- fitdistr(t_test$loess_nom, "t",
+fit_t <- fitdistr(t_test$loess_nom, "t", 
                   start = list(m=mean(t_test$loess_nom),
                                s=sd(t_test$loess_nom),
                                df=3),
@@ -342,9 +345,11 @@ t_test %>%
   ggplot() + geom_density(aes(x = loess_nom)) +
   coord_cartesian(xlim = c(-0.1, 0.1)) +
   stat_function(fun = dnorm, args = list(mean = fit_norm[["estimate"]][["mean"]],
-                                         sd = fit_norm[["estimate"]][["sd"]])) +
+                                         sd = fit_norm[["estimate"]][["sd"]]),
+                aes_q(color = "gaussian")) +
   stat_function(fun = dnorm, args = list(mean = fit_t[["estimate"]][["m"]],
-                                         sd = fit_t[["estimate"]][["s"]]))
+                                         sd = fit_t[["estimate"]][["s"]]),
+                aes_q(color = "student's t"))
 ggsave("~/../Desktop/190709/t_distri.png", width =3, height = 4, dpi = 300)
 
 result %>% filter(chr !="chrY") %>%
@@ -354,22 +359,22 @@ result %>% filter(chr !="chrY") %>%
   dplyr::select(chr, center, dis_cov) %>%
   filter(chr =="chr2L") %>%
   ggplot(aes(x = center, y = dis_cov)) + geom_line()+
-  geom_smooth(method = "loess", span = 0.4, se = FALSE)
+  geom_smooth(method = "loess", span = 0.1, se = FALSE)
 ggsave("~/../Desktop/190709/distri_chr2L.png", width =10, height = 4, dpi = 300)
 ########################################################
 
-Merge_LOESS <- result %>%
-  drop_na() %>%
-  mutate(dis_cov = log2(Piwi/ctrl),
+Merge_LOESS <- result %>% 
+  mutate_all(funs(ifelse(is.na(.), 0, .))) %>% 
+  mutate(dis_cov = log2((Piwi + 1)/(ctrl+1)),
          center = binres + 500) %>%
-  dplyr::select(chr, center, dis_cov) %>%
-  group_by(chr) %>% nest() %>%
-  mutate(oberon = map(data, function(x) {stats::loess(x$dis_cov ~ x$center, span = 0.4)}),
+  dplyr::select(chr, center, dis_cov) %>% 
+  group_by(chr) %>% nest() %>% 
+  mutate(oberon = map(data, function(x) {stats::loess(x$dis_cov ~ x$center, span = 0.1)}),
          titania = map2(data, oberon, function(x,y) {stats::predict(y, x$center)})) %>%
-  dplyr::select(-oberon) %>% unnest() %>%
+  dplyr::select(-oberon) %>% unnest() %>% 
   mutate(loess_nom = dis_cov - titania,
          start = center -500,
-         end = center +500) %>%
+         end = center +500) %>% 
   dplyr::select(chr, start, end, loess_nom)
 loess_nom <- HMMt::bridge(Merge_LOESS %>% as.data.frame())
 HMM_baum <- HMMt::BaumWelchT(loess_nom[["x"]])
