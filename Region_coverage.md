@@ -114,19 +114,20 @@ you get coverage of multiple region by samtools bedcov.
 
 ``` r
 cd /Volumes/HDCZ-UT/chipmeta/;
-for X in SRR3503092_extended dm6_full_genome TEs-DHS-dm6_extended hkCP_extended DHS_extended dCP_extended \
-dCPclose_extended hkCPclose_extended dCPonly_extended hkCPonly_extended; do
-samtools bedcov -Q 15 ${X}.bed Bamfile/*/*.bam > Coverage/${X}_cov.bed;
+for X in [[files]]; do
+samtools bedcov -Q 15 ${X}_extended4.bed Bamfile/*/*.bam > Coverage/5000bp/${X}_cov.bed;
+samtools bedcov -Q 15 ${X}_extended3.bed Bamfile/*/*.bam > Coverage/2000bp/${X}_cov.bed;
+samtools bedcov -Q 15 ${X}_extended2.bed Bamfile/*/*.bam > Coverage/10000bp/${X}_cov.bed;
+samtools bedcov -Q 15 ${X}_extended.bed Bamfile/*/*.bam > Coverage/1000bp/${X}_cov.bed;
+done;
+for X in dm6_full_genome; do
+samtools bedcov -Q 15 ${X}.bed Bamfile/*/*.bam > Coverage/5000bp/${X}_cov.bed;
+samtools bedcov -Q 15 ${X}.bed Bamfile/*/*.bam > Coverage/2000bp/${X}_cov.bed;
+samtools bedcov -Q 15 ${X}.bed Bamfile/*/*.bam > Coverage/10000bp/${X}_cov.bed;
+samtools bedcov -Q 15 ${X}.bed Bamfile/*/*.bam > Coverage/1000bp/${X}_cov.bed;
 done;
 #samtools bedcov is not good choice, because there is bedtools coverage.
 #But when you use *, bedtools doesn't work.
-
-#10000bp length file.
-cd /Volumes/HDCZ-UT/chipmeta/;
-for X in SRR3503092_extended2 dm6_full_genome TEs-DHS-dm6_extended2 hkCP_extended2 DHS_extended2 \
-dCP_extended2 dCPclose_extended2 hkCPclose_extended2 dCPonly_extended2 hkCPonly_extended2; do
-samtools bedcov -Q 15 ${X}.bed Bamfile/*/*.bam > Coverage/10000bp/${X}_cov.bed;
-done;
 
 ls Bamfile/*/*.bam;
 #output was deleted.
@@ -144,7 +145,10 @@ with PCC.
 library(tidyverse)
 library(exactRankTests)
 #for wilcoxon rank sum test.
-#you can change wilcoxon rank sum test to student t-test, wilcoxon signed-rank test.
+library(ggpointdensity)
+library(viridis)
+#for pointdensity plot
+
 setwd("/Volumes/HDCZ-UT/chipmeta/")
 filedir <- "/Volumes/HDCZ-UT/chipmeta/"
 files <- dir(paste0(filedir, "Coverage/"), pattern = "\\.bed$", full.names = TRUE)
@@ -171,19 +175,19 @@ tx2 <- bind_rows(df) %>%
   distinct()
 
 #create count file of all region for CPM calculation.
-CPM_ctrl <- tx2 %>%
-  filter(type == "dm6_full_genome_cov") %>%
-  select(-anotation, -type) %>%
-  gather(key = "sample", value = "cov_ctrl") %>%
+CPM_ctrl <- tx2 %>% 
+  filter(type == "dm6_full_genome_cov") %>% 
+  select(-anotation, -type) %>% 
+  gather(key = "sample", value = "cov_ctrl") %>% 
   group_by(sample) %>% summarise(cov_ctrl = sum(cov_ctrl))
 
 #calculate CPM.
-CPM <- tx2 %>%
-  gather(-anotation, -type, key = "sample", value = "cov") %>%
-  left_join(CPM_ctrl, by = "sample")  %>%
-  group_by(sample) %>% nest() %>%
-  mutate(CPM = map(data, function(x) {log2(x$cov * 1000000/x$cov_ctrl + 1)})) %>%
-  unnest() %>% select(-cov, -cov_ctrl) %>%
+CPM <- tx2 %>% 
+  gather(-anotation, -type, key = "sample", value = "cov") %>% 
+  left_join(CPM_ctrl, by = "sample")  %>% 
+  group_by(sample) %>% nest() %>% 
+  mutate(CPM = map(data, function(x) {log2(x$cov * 1000000/x$cov_ctrl + 1)})) %>% 
+  unnest() %>% select(-cov, -cov_ctrl) %>% 
   filter(type != ("dm6_full_genome_cov"))
 
 #wilcox_test&boxplot violin plot, scatter plot
@@ -223,11 +227,19 @@ fig <- function(x, y) {
   COR <- scatter %>% select(-anotation) %>%
     group_by(type) %>% summarise(pcc = cor(siEGFP, siPiwi)) %>% 
     mutate(result2 = paste("italic(PCC) ==", signif(pcc, digits = 2)))
+  DIFalpha <- scatter %>% 
+    mutate(threshold = if_else(siEGFP > siPiwi, "down", "up")) %>% 
+    group_by(type, threshold) %>% summarise(change = n()) %>% 
+    mutate(result2 = if_else(threshold == "up", paste("up =", change),
+                             paste("down =", change)))
   graph3 <- scatter %>% ggplot() +
-    geom_point(aes(x = siEGFP, y = siPiwi, color = type), size = 0.3, alpha = 0.6) + 
+    geom_pointdensity(aes(x = siEGFP, y = siPiwi), size = 0.3, alpha = 0.6) +
+    scale_color_viridis() +
     geom_abline(aes(intercept = 0, slope = 1)) +
     geom_abline(intercept = c(-log2(3), log2(3)), slope = 1, linetype="dashed") +
     geom_text(x = 6, y = 3, data = COR, aes(label = result2), parse = TRUE, hjust = 0,size = 2.5) +
+    geom_text(x = 3, y = 0, data = DIFalpha %>% filter(threshold =="down"), aes(label = result2), hjust = 0,size = 2.5) +
+    geom_text(x = 0, y = 6, data = DIFalpha %>% filter(threshold =="up"), aes(label = result2), hjust = 0,size = 2.5) +
     facet_wrap(~ type)
   graph3 
   ggsave(paste0(filedir, y, "3.png"), width =12, height =9, dpi = 300)
@@ -329,11 +341,19 @@ fig2 <- function(x, y) {
   COR <- scatter %>% select(-anotation) %>%
     group_by(type) %>% summarise(pcc = cor(siEGFP, siPiwi)) %>% 
     mutate(result2 = paste("italic(PCC) ==", signif(pcc, digits = 2)))
+  DIFalpha <- scatter %>% 
+    mutate(threshold = if_else(siEGFP > siPiwi, "down", "up")) %>% 
+    group_by(type, threshold) %>% summarise(change = n()) %>% 
+    mutate(result2 = if_else(threshold == "up", paste("up =", change),
+                             paste("down =", change)))
   graph3 <- scatter %>% ggplot() +
-    geom_point(aes(x = siEGFP, y = siPiwi, color = type), size = 0.3, alpha = 0.6) + 
+    geom_pointdensity(aes(x = siEGFP, y = siPiwi), size = 0.3, alpha = 0.6) +
+    scale_color_viridis() +
     geom_abline(aes(intercept = 0, slope = 1)) +
     geom_abline(intercept = c(-log2(3), log2(3)), slope = 1, linetype="dashed") +
     geom_text(x = 4, y = 2, data = COR, aes(label = result2), parse = TRUE, hjust = 0,size = 2.5) +
+    geom_text(x = 2, y = 0, data = DIFalpha %>% filter(threshold =="down"), aes(label = result2), hjust = 0,size = 2.5) +
+    geom_text(x = 0, y = 4, data = DIFalpha %>% filter(threshold =="up"), aes(label = result2), hjust = 0,size = 2.5) +
     facet_wrap(~ type)
   graph3 
   ggsave(paste0(filedir, y, "3.png"), width =12, height =9, dpi = 300)
