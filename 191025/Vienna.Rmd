@@ -1,0 +1,315 @@
+---
+title: "Vienna"
+output: html_document
+---
+
+CLASHデータの解析(Helwak et al., Cell, 2013), (Shen et al., Cell, 2018)
+
+まず、hyb(Travis et al)をインストールしてください。
+hybはflexbar, blastn, bowtie2, pblast, UNAfold, Viennaという外部パッケージに依存したソフトです。
+これらをbashが使えるようにインストールしてやらなければならないです。
+私は、condaにflexbar, bowtie2, pblast, Viennaをインストールしましたが、直接入れてもよいと思われます。
+hybが依存する外部パッケージの中で、flexbarは引値の設定が以前とは変わってしまっています。そのため、古いバージョンをインストールする必要がありますが、依存するJavaのバージョンが古くなってしまうので、他のJavaパッケージをAnacondaで使いたい場合は、注意してください。(具体的には、MEME等の共存が難しくなるようです。)
+
+```{r, eval = FALSE}
+cd ~/hyb/data/db/;
+make_hyb_db dm6_25_2.fasta;
+
+cd /media/meg/Titania/Piwi_CLASH/;
+hyb preprocess qc=flexbar trim=30 len=23 min=4 in=Piwi_CLASH.fastq;
+cutadapt -j 3 -u 4 -u -4 -o Piwi2_CLASH_clipped_qf.fastq Piwi_CLASH_clipped_qf.fastq;
+rm Piwi_CLASH_clipped_qf.fastq;
+mv Piwi2_CLASH_clipped_qf.fastq Piwi_CLASH_clipped_qf.fastq;
+hyb check detect align=blastn \
+word=11 analyse fold=vienna in=Piwi_CLASH.fastq db=dm6_25_2 ;
+#hybでどのようなコードが実行されるかはlogとしてでてくる。
+#詳しい使い方は-hで確認。
+#cutadaptは入出力が同じファイル名だとエラーになる。そのため、かなり回りくどい書き方になった。
+
+#shuffle sequence
+mkdir shuffle/;
+conda info -e;
+source activate for_MEME;
+A=Piwi_CLASH_comp_dm6_25_2_hybrids_ua;
+fasta-shuffle-letters -dna -kmer 1 ${A}.bit_1.fasta shuffle/${A}.bit_1.fasta;
+fasta-shuffle-letters -dna -kmer 1 ${A}.bit_2.fasta shuffle/${A}.bit_2.fasta;
+conda deactivate;
+paste shuffle/${A}.bit_1.fasta shuffle/${A}.bit_2.fasta | awk 'NR%2==1{print $1"-"$2}; NR%2==0{print $1"&"$2}'|sed 's/->/-/g' > shuffle/${A}_5shuffle_3shuffle.merged;
+RNAup --interaction_pairwise -o -w 20 < shuffle/${A}_5shuffle_3shuffle.merged > shuffle/${A}_5shuffle_3shuffle.rnaup 2> /dev/null;
+make_vienna shuffle/${A}_5shuffle_3shuffle.rnaup shuffle/${A}_5shuffle_3shuffle.merged > shuffle/${A}_5shuffle_3shuffle.vienna;
+paste ${A}.bit_1.fasta shuffle/${A}.bit_2.fasta | awk 'NR%2==1{print $1"-"$2}; NR%2==0{print $1"&"$2}'|sed 's/->/-/g' > shuffle/${A}_3shuffle.merged;
+RNAup --interaction_pairwise -o -w 20 < shuffle/${A}_3shuffle.merged > shuffle/${A}_3shuffle.rnaup 2> /dev/null;
+make_vienna shuffle/${A}_3shuffle.rnaup shuffle/${A}_3shuffle.merged > shuffle/${A}_3shuffle.vienna;
+paste shuffle/${A}.bit_1.fasta ${A}.bit_2.fasta | awk 'NR%2==1{print $1"-"$2}; NR%2==0{print $1"&"$2}'|sed 's/->/-/g' > shuffle/${A}_5shuffle.merged;
+RNAup --interaction_pairwise -o -w 20 < shuffle/${A}_5shuffle.merged > shuffle/${A}_5shuffle.rnaup 2> /dev/null;
+make_vienna shuffle/${A}_5shuffle.rnaup shuffle/${A}_5shuffle.merged > shuffle/${A}_5shuffle.vienna;
+
+#piRNA filter
+cd ~/hyb/data/fastq/;
+samtools faidx piRNA_all.fasta;
+```
+
+
+```{r , message=FALSE, warning=FALSE}
+setwd("/media/meg/Titania/Piwi_CLASH/")
+filedir <- "/media/meg/Titania/Piwi_CLASH/"
+library(tidyverse)
+library(RColorBrewer)
+library(gridExtra)
+piRNA_length <- read_tsv("~/hyb/data/fastq/piRNA_all.fasta.fai", 
+                         col_names = c("piRNA", "pi_length")) %>% 
+  separate(piRNA, sep = "\\_", into = c("gene_name"))
+#piRNA_lengthは各piRNAの長さ情報を含む。これは、piRNAが全長入っているかの判別に使う。
+Vienna <- read_csv("Piwi_CLASH_comp_dm6_25_2_hybrids_ua.vienna", 
+                   col_names = "data") %>% 
+  mutate(index = rep(1:(length(.$data) / 3), each = 3),
+         type = if_else(row_number() %% 3 == 1,"name",
+                        if_else(row_number() %% 3 == 2, "seq", "score"))) %>% 
+  spread(key = "type", value = "data") 
+#Vienna fileは最初の行にリードの名前、２行目にリードの配列、３行目に結合箇所.
+#なので、spreadを使って、表をバラけさせる。spreadの仕様上、バラけさせない列があったほうがまともに動くので、indexを作成する。
+#このとき作成したindexは後にリード識別用としても使っているが、それをリードの名前でやった方がいいかもしれない
+
+Vienna2 <- Vienna %>% 
+  mutate(name = str_replace_all(name, "transposable_element", "TE"),
+         name = str_replace(name, "pre_miRNA", "premiRNA")) %>% 
+  separate(score, sep = "\\t", into= c("contact", "deltaG")) %>% 
+  separate(name, sep = "\\_", into= c("dis11", "count", "gene_name", "dis", "dis2", "type2", "start", "end", "dis4", 
+                                      "target", "dis5", "dis6", "type3", "start2", "end2")) %>% 
+  separate(end, sep = "-", into = c("end", "dis10")) %>% 
+  select(-contains("dis")) %>% 
+  mutate(deltaG = str_replace(deltaG, "\\(", "") %>% str_replace("\\)", "") %>% as.double(),
+         count = count %>% as.integer(),
+         start = start %>% as.integer(),
+         end = end %>% as.integer())
+#Vienna2はリードの名前をバラすことで、CLASHのリード情報を取得する。
+#"_"がバラけさせるのに重要となる。そのため、元のfastaファイルのリードの名前に大量の"_"が含まれると、正しくデータを得ることができない
+#そこで、まず"_"を含む語句を置き換える。使わない列名はcontains関数で簡単に指定できるようにdisという文字を入れておく。
+#separateによってわけられたとき、すべてchr型になるので、数字はdoubleかintに変換しておく。(型間違いはバグの温床)
+Vienna2 %>% group_by(type2, type3) %>% 
+  summarise(count = n()) %>% 
+  ggplot(aes(y =type3, x=type2))+
+  geom_tile(aes(fill = count))+
+  geom_text(aes(label = count))+
+  scale_fill_gradient(low = "white", high = "green")+
+  theme(axis.text.x = element_text(angle = 30,hjust = 1))+
+  xlab("3' RNA type") + ylab("5' RNA type")
+
+Vienna2 %>% group_by(type2, type3) %>% 
+  summarise(count = sum(count)) %>% 
+  ggplot(aes(y =type3, x=type2))+
+  geom_tile(aes(fill = count))+
+  geom_text(aes(label = count))+
+  scale_fill_gradient(low = "white", high = "green")+
+  theme(axis.text.x = element_text(angle = 30,hjust = 1))+
+  xlab("3' RNA type") + ylab("5' RNA type")
+
+Vienna3 <- Vienna2 %>% filter(type2 == "piRNA") %>% 
+  filter(start==1) %>% 
+  mutate(contact2 = str_sub(contact, 1, (end - start + 1)),
+         length = nchar(seq),
+         piRNAlen = end-start+1)%>% 
+  filter(str_detect(contact2, "\\(")) %>% 
+  left_join(piRNA_length, by = "gene_name") %>% 
+  filter(pi_length == piRNAlen)
+Vienna3 %>% mutate(deltaG2 = if_else(deltaG %% 1 >=0.5, deltaG %/% 1+1, deltaG %/% 1)) %>% 
+  group_by(deltaG2) %>% summarise(total = sum(count)) %>% 
+  ggplot(aes(x = deltaG2, y = total)) + geom_line(color= "blue")+
+  xlab("dG (kcal/mol)") + ylab("Number of chimeric reads")
+
+Vienna3 %>% ggplot(aes(x = deltaG)) + geom_freqpoly(binwidth=1)
+
+Vienna3 %>% group_by(type3) %>% 
+  summarise(count_collapse = n()) %>% 
+  ggplot(aes(x = fct_reorder(type3, count_collapse) %>% fct_rev(), y = count_collapse)) +
+  geom_col(fill = "orange")+
+  xlab("RNA type") + ylab("count of collapsed reads") +
+  geom_text(aes(label = count_collapse), vjust = -0.5, hjust=0.5, colour = "black",size = 3)+
+  theme(axis.text.x = element_text(angle = 30,hjust = 1))
+
+Vienna3 %>% group_by(type3) %>% 
+  summarise(count = sum(count)) %>% 
+  ggplot(aes(x = fct_reorder(type3, count) %>% fct_rev(), y = count)) +
+  geom_col(fill = "orange")+
+  xlab("RNA type") + ylab("count of reads") +
+  geom_text(aes(label = count), vjust = -0.5, hjust=0.5, colour = "black",size = 3)+
+  theme(axis.text.x = element_text(angle = 30,hjust = 1))
+
+
+Vienna3 %>% group_by(piRNAlen) %>% 
+  summarise(count = n()) %>% 
+  ggplot(aes(x = piRNAlen, y = count)) + geom_col(fill = "orange")+
+  xlab("piRNA length") + ylab("Number of chimeric reads") +
+  geom_text(aes(label = count), vjust = -0.5, hjust=0.5, colour = "black",size = 3)+
+  scale_x_continuous(breaks = c(24,25,26,27,28,29,30))
+
+Vienna3 %>% group_by(piRNAlen) %>% 
+  summarise(count = sum(count)) %>% 
+  ggplot(aes(x = piRNAlen, y = count)) + geom_col(fill = "orange")+
+  xlab("piRNA length") + ylab("Number of chimeric reads") +
+  geom_text(aes(label = count), vjust = -0.5, hjust=0.5, colour = "black",size = 3)+
+  scale_x_continuous(breaks = c(24,25,26,27,28,29,30))
+
+
+Vienna3 %>% write_tsv(paste0(filedir,"vienna/", "Piwi_CLASH.tsv"))
+#Vienna3は、piRNAが5'側に全長で入っているものだけを取ってきたものになっている。
+Vienna4 <- Vienna3 %>% 
+  select(index, gene_name,target, piRNAlen,seq, contact2, deltaG) %>% 
+  mutate(heat = contact2 %>% str_replace_all("\\.","0-") %>% str_replace_all("\\(","1-")) 
+#Vienna4では、...(((())))のようなものを0001111と変換する。その後の操作で、000111を1単語ずつ分けて列に入れる関数を見つけることができなかったので、
+#あらかじめ0-1-0-0-1-のように変換することで、separateを使って分離できるようにした。
+Vienna5 <- Vienna4 %>%
+  mutate(score = map(heat, function(x) {x %>% str_sub(end = -2) %>% str_split(pattern = "-")})) %>% 
+  unnest(cols = score) %>% 
+  mutate(base = map(score, function(x) {seq(1, length(x), by = 1)})) %>% 
+  select(index, deltaG, piRNAlen, gene_name, score, base) %>% 
+  unnest(cols = c(score, base)) %>% 
+  mutate(score_G = as.integer(score) * deltaG,
+         gene_name = paste0(gene_name, "_", index))
+#Vienna5はヒートマップ描画用
+Vienna5 %>%  
+  ggplot() +
+  geom_tile(aes(y =gene_name, fill = score, x=base))+
+  facet_wrap(~piRNAlen, scales = "free_y") + 
+  scale_fill_manual(values = c("0"="white","1"= "black"))
+Vienna5 %>%  filter(piRNAlen %in% c(25,26,27,28)) %>%
+  mutate(piRNAlen2 = paste0("piRNA (", piRNAlen, "nt)")) %>% 
+  ggplot() +
+  geom_tile(aes(y =gene_name, fill = score_G, x=base))+
+  facet_wrap(~piRNAlen2, strip.position ="top", scales = "free_y", ncol=4)+
+  scale_fill_gradient(low = "black", high = "white")+
+  labs(fill = "dG (kcal/mol)", x = "bases (nt)", y= "ordered by k-means (center = 5)")+
+  theme(axis.title.y = element_blank(),
+        axis.text.y = element_blank(),
+        axis.ticks.y = element_blank(),
+        legend.position = "top",
+        strip.background=element_blank())
+
+
+#k-means
+#k-meansを使って、見栄えがいいように並び替える。centerの位置を決定し、特徴量をうまく見出せることが最終目標
+kmeans <- Vienna5 %>% select(-score) %>% 
+  filter(piRNAlen %in% c(25, 26, 27, 28)) %>% 
+  group_by(piRNAlen) %>% nest() %>% 
+  mutate(miranda = map(data, function(x) {x %>% spread(base, score_G)}),
+         km = map(miranda, function(x) {x %>% select(-index, -gene_name, -deltaG) %>% 
+             kmeans(centers = 3, nstart = 1000, iter.max = 1000, algorithm = "MacQueen")}),
+         cluster = map(km, function(x) {x[["cluster"]]})) %>% 
+  select(-km, -data) %>% 
+  unnest(cols = c(miranda, cluster))
+kmeans2 <- kmeans %>% gather(-piRNAlen, -index, -cluster, -gene_name, -deltaG, key = "base", value = "score_G") %>% 
+  drop_na() %>% 
+  mutate(base = base %>% as.integer()) %>% 
+  group_by(cluster) %>% nest() %>% 
+  mutate(center_dG = map(data, function(x) {x$deltaG %>% mean()})) %>% 
+  unnest(cols = c(data, center_dG)) %>% 
+  arrange(piRNAlen, cluster, gene_name, base) %>%
+  mutate(piRNAlen2 = paste0("piRNA (", piRNAlen, "nt)"))
+kmeans2 %>% ggplot() +
+  geom_tile(aes(y =fct_reorder(gene_name, center_dG) %>% fct_rev(), fill = score_G, x=base))+
+  facet_wrap(~piRNAlen2, strip.position ="top", scales = "free_y", ncol=4)+
+  scale_fill_gradient(low = "black", high = "white")+
+  labs(fill = "dG (kcal/mol)", x = "bases (nt)", y= "ordered by k-means (center = 3)")+
+  theme(axis.title.y = element_blank(),
+        axis.text.y = element_blank(),
+        axis.ticks.y = element_blank(),
+        legend.position = "top",
+        strip.background=element_blank())
+
+
+#elbow plot
+#elbowプロットは、k-meansのクラスタを決定するための指標にする図。実際の使われ方は、Haberle et al., Nature, 2019などをみてみるとよい
+#コードは、「データサイエンスのための統計学入門」の丸写し
+kmeans_elbow <- Vienna5 %>% select(-score, -deltaG) %>% 
+  filter(piRNAlen == 26) %>% 
+  spread(base, score_G)
+kmeans_elbow2 <- kmeans_elbow %>% select(-index, -piRNAlen, -gene_name)
+pct_var <- data.frame(pct_var = 0, num_clusters = 2:20)
+totalss <- kmeans(kmeans_elbow2, centers = 20, nstart = 1000, iter.max = 1000, algorithm = "MacQueen")$totss
+for(i in 2:20){
+  pct_var[i-1, 'pct_var'] <- kmeans(kmeans_elbow2, centers = i, nstart = 1000, iter.max = 1000, algorithm = "MacQueen")$betweenss/totalss
+}
+ggplot(pct_var, aes(x = num_clusters, y = pct_var)) + 
+  geom_line() + geom_point() + theme_bw() +
+  ylim(0, 1) + xlab("Number of clusters") + ylab("% Variance Explained")
+
+
+######################################
+#shuffle
+######################################
+filedir2 <- "/media/meg/Titania/Piwi_CLASH/shuffle"
+files1 <- dir(filedir2, pattern = "\\.vienna$", full.names = TRUE)
+files2 <- files1 %>%
+  str_replace_all("/media/meg/Titania/Piwi_CLASH/shuffle/Piwi_CLASH_comp_dm6_25_2_hybrids_ua_|.vienna$", "")
+df2 <- vector("list", length(files1))
+for (i in seq_along(files1)) {
+  df2[[i]] <- read_csv(files1[[i]], 
+                       col_names = "data") %>% 
+    mutate(index = rep(1:(length(.$data) / 3), each = 3),
+           type = if_else(row_number() %% 3 == 1,"name",
+                          if_else(row_number() %% 3 == 2, "seq", "score"))) %>% 
+    spread(key = "type", value = "data") 
+  df2[[i]][["sample"]] <- files2[[i]]
+}
+#2回目なので、全てまとめた。fasta_shuffle_lettersを使うと、リードの後ろに"_shuf"とつく。
+#バグの原因になるので(separateのときに"_"でわけるため)、置き換えている。
+Vienna_shuffle <- df2 %>% bind_rows() %>% 
+  mutate(name = str_replace_all(name, "transposable_element", "TE"),
+         name = str_replace(name, "pre_miRNA", "premiRNA"),
+         name = str_replace(name, "_shuf", "")) %>% 
+  separate(score, sep = "\\t", into= c("contact", "deltaG")) %>% 
+  separate(name, sep = "\\_", into= c("dis11", "count", "gene_name", "dis", "dis2", "type2", "start", "end", "dis4", 
+                                      "target", "dis5", "dis6", "type3", "start2", "end2")) %>% 
+  separate(end, sep = "-", into = c("end", "dis10")) %>% 
+  select(-contains("dis")) %>% 
+  mutate(deltaG = str_replace(deltaG, "\\(", "") %>% str_replace("\\)", "") %>% as.double(),
+         count = count %>% as.integer(),
+         start = start %>% as.integer(),
+         end = end %>% as.integer()) %>%
+  filter(type2 == "piRNA") %>% 
+  filter(start==1) %>% 
+  mutate(contact2 = str_sub(contact, 1, (end - start + 1)),
+         length = nchar(seq),
+         piRNAlen = end-start+1)%>% 
+  filter(str_detect(contact2, "\\(")) %>% 
+  left_join(piRNA_length, by = "gene_name") %>% 
+  filter(pi_length == piRNAlen)
+#Vienna3とくっつけて、図を完成させる。
+Vienna3 %>% mutate(sample = "chimera") %>% 
+  bind_rows(Vienna_shuffle) %>% 
+  mutate(sample2 = if_else(sample =="chimera", sample,
+                           if_else(sample == "5shuffle", "5' were shuffled",
+                                   if_else(sample == "3shuffle", "3' were shuffled",
+                                           "both were shuffled")))) %>% 
+  mutate(deltaG2 = if_else(deltaG %% 1 >=0.5, deltaG %/% 1+1, deltaG %/% 1)) %>% 
+  group_by(sample2, deltaG2) %>% summarise(total = sum(count)) %>% 
+  ggplot(aes(x = deltaG2, y = total)) + geom_line(aes(color = sample2), size =1)+
+  geom_point(aes(color = sample2), size = 2)+
+  xlab("dG (kcal/mol)") + ylab("Number of chimeric reads")+
+  guides(color = guide_legend(title =NULL))+
+  theme(legend.position = c(0.2,0.8),
+        legend.background = element_blank(),
+        legend.key = element_blank())
+
+
+Vienna3 %>% mutate(sample = "chimera") %>% 
+  bind_rows(Vienna_shuffle) %>% 
+  mutate(sample2 = if_else(sample =="chimera", sample,
+                           if_else(sample == "5shuffle", "5' were shuffled",
+                                   if_else(sample == "3shuffle", "3' were shuffled",
+                                           "both were shuffled")))) %>% 
+  filter(type3 =="mRNA") %>% 
+  mutate(deltaG2 = if_else(deltaG %% 1 >=0.5, deltaG %/% 1+1, deltaG %/% 1)) %>% 
+  group_by(sample2, deltaG2) %>% summarise(total = sum(count)) %>% 
+  ggplot(aes(x = deltaG2, y = total)) + geom_line(aes(color = sample2), size =1)+
+  geom_point(aes(color = sample2), size = 2)+
+  xlab("dG (kcal/mol)") + ylab("Number of chimeric reads")+
+  guides(color = guide_legend(title =NULL))+
+  theme(legend.position = c(0.2,0.8),
+        legend.background = element_blank(),
+        legend.key = element_blank())
+
+################################################################
+
+```
+

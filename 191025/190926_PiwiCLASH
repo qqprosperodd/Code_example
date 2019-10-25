@@ -1,0 +1,212 @@
+cd /media/meg/Titania/mapping/AGO1_CLASH/;
+mkdir Discas/;
+for X in SRR959751 SRR959752 SRR959753 SRR959754 SRR959755 SRR959756 SRR959757 SRR959758 SRR959759 ; do
+fasterq-dump -e 10 ${X};
+done;
+###################################
+#test-ago1
+###################################
+cd /media/meg/Titania/mapping/AGO1_CLASH/;
+hyb preprocess qc=flexbar trim=30 len=17 min=4 check detect align=blastn \
+word=11 analyse fold=vienna in=SRR959751.fastq db=hOH7;
+
+for X in SRR959756 SRR959757 SRR959759 SRR959758; do
+fasterq-dump -e 6 ${X};
+done;
+for X in SRR959752 SRR959753;do
+seqkit grep -j 3 -sirp ^AC ${X}.fastq -o Discas/${X}fill.fastq;
+cutadapt -j 3 -u 2 -o ${X}_trim.fastq Discas/${X}fill.fastq;
+done;
+for X in SRR959754 SRR959755;do
+seqkit grep -j 3 -sirp ^GA ${X}.fastq -o Discas/${X}fill.fastq;
+cutadapt -j 3 -u 2 -o ${X}_trim.fastq Discas/${X}fill.fastq;
+done;
+for X in SRR959756 SRR959757;do
+seqkit grep -j 3 -sirp ^CACAGC ${X}.fastq -o Discas/${X}fill.fastq;
+cutadapt -j 3 -u 6 -o ${X}_trim.fastq Discas/${X}fill.fastq;
+done;
+for X in SRR959758 ;do
+cutadapt -j 3 -u 8 -o ${X}_trim.fastq ${X}.fastq;
+done;
+for X in SRR959759 ;do
+cutadapt -j 3 -u 9 -o ${X}_trim.fastq ${X}.fastq;
+done;
+#seqkitはNに対応していないようなので飛ばす。
+for X in SRR959752 SRR959753 SRR959754 SRR959755 SRR959756 SRR959757 SRR959758 SRR959759;do
+hyb preprocess qc=flexbar trim=30 len=17 min=4 check detect align=blastn \
+word=11 analyse fold=vienna in=${X}_trim.fastq db=hOH7;
+done;
+fastqc -t 6 *.fastq -o Discas/;
+#seqkitはNに対応していないようなので飛ばす。
+#fastqcの結果を見れば、すでにgrepされているので、seqkitを使う意義はもともとない。直接cutadaptでカットしてよい。
+
+cd ~/hyb/data/fastq/;
+samtools faidx hOH7-microRNA.fasta;
+#miRNAの長さ情報を習得するためにindexを作成
+mkdir shuffle/;
+for X in SRR959752 SRR959753 SRR959754 SRR959755 SRR959756 SRR959757 SRR959758 SRR959759; do
+source activate for_MEME;
+A=${X}_trim_comp_hOH7_hybrids_ua;
+fasta-shuffle-letters -dna -kmer 1 ${A}.bit_1.fasta shuffle/${A}.bit_1.fasta;
+fasta-shuffle-letters -dna -kmer 1 ${A}.bit_2.fasta shuffle/${A}.bit_2.fasta;
+conda deactivate;
+paste shuffle/${A}.bit_1.fasta shuffle/${A}.bit_2.fasta | awk 'NR%2==1{print $1"-"$2}; NR%2==0{print $1"&"$2}'|sed 's/->/-/g' > shuffle/${A}_5shuffle_3shuffle.merged;
+RNAup --interaction_pairwise -o -w 20 < shuffle/${A}_5shuffle_3shuffle.merged > shuffle/${A}_5shuffle_3shuffle.rnaup 2> /dev/null;
+make_vienna shuffle/${A}_5shuffle_3shuffle.rnaup shuffle/${A}_5shuffle_3shuffle.merged > shuffle/${A}_5shuffle_3shuffle.vienna;
+paste ${A}.bit_1.fasta shuffle/${A}.bit_2.fasta | awk 'NR%2==1{print $1"-"$2}; NR%2==0{print $1"&"$2}'|sed 's/->/-/g' > shuffle/${A}_3shuffle.merged;
+RNAup --interaction_pairwise -o -w 20 < shuffle/${A}_3shuffle.merged > shuffle/${A}_3shuffle.rnaup 2> /dev/null;
+make_vienna shuffle/${A}_3shuffle.rnaup shuffle/${A}_3shuffle.merged > shuffle/${A}_3shuffle.vienna;
+paste shuffle/${A}.bit_1.fasta ${A}.bit_2.fasta | awk 'NR%2==1{print $1"-"$2}; NR%2==0{print $1"&"$2}'|sed 's/->/-/g' > shuffle/${A}_5shuffle.merged;
+RNAup --interaction_pairwise -o -w 20 < shuffle/${A}_5shuffle.merged > shuffle/${A}_5shuffle.rnaup 2> /dev/null;
+make_vienna shuffle/${A}_5shuffle.rnaup shuffle/${A}_5shuffle.merged > shuffle/${A}_5shuffle.vienna;
+done;
+
+for X in SRR959751; do
+source activate for_MEME;
+A=${X}_comp_hOH7_hybrids_ua;
+fasta-shuffle-letters -dna -kmer 1 ${A}.bit_1.fasta shuffle/${A}.bit_1.fasta;
+fasta-shuffle-letters -dna -kmer 1 ${A}.bit_2.fasta shuffle/${A}.bit_2.fasta;
+conda deactivate;
+paste shuffle/${A}.bit_1.fasta shuffle/${A}.bit_2.fasta | awk 'NR%2==1{print $1"-"$2}; NR%2==0{print $1"&"$2}'|sed 's/->/-/g' > shuffle/${A}_5shuffle_3shuffle.merged;
+RNAup --interaction_pairwise -o -w 20 < shuffle/${A}_5shuffle_3shuffle.merged > shuffle/${A}_5shuffle_3shuffle.rnaup 2> /dev/null;
+make_vienna shuffle/${A}_5shuffle_3shuffle.rnaup shuffle/${A}_5shuffle_3shuffle.merged > shuffle/${A}_5shuffle_3shuffle.vienna;
+paste ${A}.bit_1.fasta shuffle/${A}.bit_2.fasta | awk 'NR%2==1{print $1"-"$2}; NR%2==0{print $1"&"$2}'|sed 's/->/-/g' > shuffle/${A}_3shuffle.merged;
+RNAup --interaction_pairwise -o -w 20 < shuffle/${A}_3shuffle.merged > shuffle/${A}_3shuffle.rnaup 2> /dev/null;
+make_vienna shuffle/${A}_3shuffle.rnaup shuffle/${A}_3shuffle.merged > shuffle/${A}_3shuffle.vienna;
+paste shuffle/${A}.bit_1.fasta ${A}.bit_2.fasta | awk 'NR%2==1{print $1"-"$2}; NR%2==0{print $1"&"$2}'|sed 's/->/-/g' > shuffle/${A}_5shuffle.merged;
+RNAup --interaction_pairwise -o -w 20 < shuffle/${A}_5shuffle.merged > shuffle/${A}_5shuffle.rnaup 2> /dev/null;
+make_vienna shuffle/${A}_5shuffle.rnaup shuffle/${A}_5shuffle.merged > shuffle/${A}_5shuffle.vienna;
+done;
+
+###################################################
+####################################
+#main
+#####################################
+cd ~/hyb/data/db/;
+make_hyb_db dm6_25_2.fasta;
+make_hyb_db dm6_25.fasta;
+
+
+cd /media/meg/Titania/Piwi_CLASH/;
+hyb preprocess qc=flexbar trim=30 len=23 min=4 check detect align=blastn \
+word=11 analyse fold=vienna in=Piwi_CLASH.fastq db=dm6_25_2 ;
+
+hyb preprocess qc=flexbar trim=30 len=23 min=4 in=Piwi_CLASH.fastq;
+cutadapt -j 3 -u 4 -u -4 -o Piwi2_CLASH_clipped_qf.fastq Piwi_CLASH_clipped_qf.fastq;
+rm Piwi_CLASH_clipped_qf.fastq;
+mv Piwi2_CLASH_clipped_qf.fastq Piwi_CLASH_clipped_qf.fastq;
+hyb check detect align=blastn \
+word=11 analyse fold=vienna in=Piwi_CLASH.fastq db=dm6_25_2 ;
+
+
+
+hyb detect align=blastn \
+word=11 analyse fold=vienna in=Piwi_CLASH_comp.fasta format=fasta db=dm6_25 ;
+
+
+
+#shuffle sequence
+mkdir shuffle/;
+conda info -e;
+source activate for_MEME;
+A=Piwi_CLASH_comp_dm6_25_2_hybrids_ua;
+fasta-shuffle-letters -dna -kmer 1 ${A}.bit_1.fasta shuffle/${A}.bit_1.fasta;
+fasta-shuffle-letters -dna -kmer 1 ${A}.bit_2.fasta shuffle/${A}.bit_2.fasta;
+conda deactivate;
+paste shuffle/${A}.bit_1.fasta shuffle/${A}.bit_2.fasta | awk 'NR%2==1{print $1"-"$2}; NR%2==0{print $1"&"$2}'|sed 's/->/-/g' > shuffle/${A}_5shuffle_3shuffle.merged;
+RNAup --interaction_pairwise -o -w 20 < shuffle/${A}_5shuffle_3shuffle.merged > shuffle/${A}_5shuffle_3shuffle.rnaup 2> /dev/null;
+make_vienna shuffle/${A}_5shuffle_3shuffle.rnaup shuffle/${A}_5shuffle_3shuffle.merged > shuffle/${A}_5shuffle_3shuffle.vienna;
+paste ${A}.bit_1.fasta shuffle/${A}.bit_2.fasta | awk 'NR%2==1{print $1"-"$2}; NR%2==0{print $1"&"$2}'|sed 's/->/-/g' > shuffle/${A}_3shuffle.merged;
+RNAup --interaction_pairwise -o -w 20 < shuffle/${A}_3shuffle.merged > shuffle/${A}_3shuffle.rnaup 2> /dev/null;
+make_vienna shuffle/${A}_3shuffle.rnaup shuffle/${A}_3shuffle.merged > shuffle/${A}_3shuffle.vienna;
+paste shuffle/${A}.bit_1.fasta ${A}.bit_2.fasta | awk 'NR%2==1{print $1"-"$2}; NR%2==0{print $1"&"$2}'|sed 's/->/-/g' > shuffle/${A}_5shuffle.merged;
+RNAup --interaction_pairwise -o -w 20 < shuffle/${A}_5shuffle.merged > shuffle/${A}_5shuffle.rnaup 2> /dev/null;
+make_vienna shuffle/${A}_5shuffle.rnaup shuffle/${A}_5shuffle.merged > shuffle/${A}_5shuffle.vienna;
+
+#piRNA filter
+cd ~/hyb/data/fastq/;
+samtools faidx piRNA_all.fasta;
+cd intron/;
+source activate for_MEME;
+A=Piwi_CLASH_comp_comp_dm6_25_hybrids_ua;
+fasta-shuffle-letters -dna -kmer 1 ${A}.bit_1.fasta shuffle/${A}.bit_1.fasta;
+fasta-shuffle-letters -dna -kmer 1 ${A}.bit_2.fasta shuffle/${A}.bit_2.fasta;
+conda deactivate;
+paste shuffle/${A}.bit_1.fasta shuffle/${A}.bit_2.fasta | awk 'NR%2==1{print $1"-"$2}; NR%2==0{print $1"&"$2}'|sed 's/->/-/g' > shuffle/${A}_5shuffle_3shuffle.merged;
+RNAup --interaction_pairwise -o -w 20 < shuffle/${A}_5shuffle_3shuffle.merged > shuffle/${A}_5shuffle_3shuffle.rnaup 2> /dev/null;
+make_vienna shuffle/${A}_5shuffle_3shuffle.rnaup shuffle/${A}_5shuffle_3shuffle.merged > shuffle/${A}_5shuffle_3shuffle.vienna;
+paste ${A}.bit_1.fasta shuffle/${A}.bit_2.fasta | awk 'NR%2==1{print $1"-"$2}; NR%2==0{print $1"&"$2}'|sed 's/->/-/g' > shuffle/${A}_3shuffle.merged;
+RNAup --interaction_pairwise -o -w 20 < shuffle/${A}_3shuffle.merged > shuffle/${A}_3shuffle.rnaup 2> /dev/null;
+make_vienna shuffle/${A}_3shuffle.rnaup shuffle/${A}_3shuffle.merged > shuffle/${A}_3shuffle.vienna;
+paste shuffle/${A}.bit_1.fasta ${A}.bit_2.fasta | awk 'NR%2==1{print $1"-"$2}; NR%2==0{print $1"&"$2}'|sed 's/->/-/g' > shuffle/${A}_5shuffle.merged;
+RNAup --interaction_pairwise -o -w 20 < shuffle/${A}_5shuffle.merged > shuffle/${A}_5shuffle.rnaup 2> /dev/null;
+make_vienna shuffle/${A}_5shuffle.rnaup shuffle/${A}_5shuffle.merged > shuffle/${A}_5shuffle.vienna;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+########
+#hyb usage
+#######
+help:
+	@echo ""
+	@echo "usage:"
+	@echo "       hyb demultiplex in=file code=file"
+	@echo "       hyb [preprocess] [check] in=file"
+	@echo "       hyb [detect] [analyse] in=file db=name"
+	@echo "       hyb [help] [list]"
+	@echo ""
+	@echo "tasks:"
+	@echo "       demultiplex - bar-coded reads"
+	@echo "       preprocess - clip vector and quality trim reads"
+	@echo "       check - run QC checks"
+	@echo "       detect - hybrids"
+	@echo "       analyse - hybrids"
+	@echo "       help - display help summary"
+	@echo "       list - (db) databases and (ref) files"
+	@echo ""
+	@echo "input:"
+	@echo "       in=file - (or file.gz) of raw reads in FASTQ format"
+	@echo "       id=name - sample id (default=name of input file)"
+	@echo "       format=type - fastq (default), fasta, comp, blast"
+	@echo "       code=file - containing bar-codes and sample ID's"
+	@echo "       miss=value - mismatches in bar-code (default=0)"
+	@echo ""
+	@echo "quality control:"
+	@echo "       qc=name - quality control: none, fastx, flexbar(default)"
+	@echo "       qual=value - FASTQ quality offset (default=auto)"
+	@echo "       link=sequence - 3' linker (default=TGGAATTCTCGGGTGCCAAGGC)"
+	@echo "       min=value - min alignment for adapter clip (default=4)"
+	@echo "       len=value - min read-length after clip/trim (default=17)"
+	@echo "       trim=value - quality trim threshold (default=0)"
+	@echo "       filt=value - quality filter threshold (default=0)"
+	@echo "       pc=value - percent >= filter threshold (default=0)"
+	@echo ""
+	@echo "read alignment:"
+	@echo "       align=type - none, blastall, blastn, blat, pblat, bowtie2(default)"
+	@echo "       db=name - database to align against"
+	@echo "       word=value - query word size (default=11)"
+	@echo "       eval=value - query E-value threshold (default=0.1)"
+	@echo ""
+	@echo "hybrid detection:"
+	@echo "       ref=file - hit priority reference file"
+	@echo "       anti=flag - allow antisense hits: 1, 0 (default)"
+	@echo "       type=name - hybrid type: mim, sno, all(default)"
+	@echo "       fold=type - RNA folding: vienna, UNAfold(default)"
+	@echo "       pref=type - prefer hybrid: none, mim (default)"
+	@echo "       hval=value - hybrid selection threshold (default=0.1)"
+	@echo "       hmax=value - max hits per hybrid (default=10)"
+	@echo "       gmax=value - max gap/overlap between hybrid bits (default=4)"
+	@echo ""
